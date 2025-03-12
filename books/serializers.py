@@ -11,7 +11,7 @@ class ListBookSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Book
-        fields = ["title", "author", "category", "description", "available_copies"]
+        fields = ["id", "title", "author", "category", "description", "available_copies"]
     
     def get_available_copies(self, obj):
         return obj.copies.filter(is_available=True).count()
@@ -20,6 +20,7 @@ class AddBookSerializer(serializers.ModelSerializer):
     class Meta:
         model = Book
         fields = [
+            "id", 
             "title",
             "author",
             "category",
@@ -28,11 +29,15 @@ class AddBookSerializer(serializers.ModelSerializer):
             "total_copies",
         ]
 
+class BookCopySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BookCopy
+        fields = ["id", "book", "is_available", "borrower"]
 
 class EditBookSerializer(serializers.ModelSerializer):
     class Meta:
         model = Book
-        fields = ["title", "author", "category", "isbn", "total_copies", "description"]
+        fields = ["id", "title", "author", "category", "isbn", "total_copies", "description"]
         
 class BorrowBookSerializer(serializers.ModelSerializer):
     class Meta:
@@ -60,13 +65,13 @@ class RentalIDSerializer(serializers.ModelSerializer):
 class EditUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ("username", "email", "first_name", "last_name", "phone")
+        fields = ("id", "username", "email", "first_name", "last_name", "phone")
 
 
 class OpinionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Opinion
-        fields = ("rate", "comment")
+        fields = ("id", "rate", "comment")
 
 
 class BookRentalSerializer(serializers.ModelSerializer):
@@ -76,6 +81,7 @@ class BookRentalSerializer(serializers.ModelSerializer):
     class Meta:
         model = BookRental
         fields = [
+            "id", 
             'book_title', 
             'book_author', 
             'rental_date', 
@@ -107,6 +113,7 @@ class OpinionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Opinion
         fields = [
+            "id", 
             'book_title', 
             'rate', 
             'comment', 
@@ -117,6 +124,7 @@ class BadgeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Badge
         fields = [
+            "id", 
             'first_book', 
             'ten_books', 
             'twenty_books', 
@@ -128,7 +136,8 @@ class BadgeSerializer(serializers.ModelSerializer):
 class AdminUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = (
+        fields = [
+            "id", 
             "username",
             "first_name",
             "last_name",
@@ -137,7 +146,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
             "phone",
             "is_employee",
             "is_active",
-        )
+        ]
 
     def save(self, commit=True):
         user = super().save(commit=False)
@@ -159,7 +168,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CustomUser
-        fields = ("username", "password")
+        fields = ("id", "username", "password")
 
     def validate(self, data):
         password = data.get("password")
@@ -174,3 +183,48 @@ class UserSerializer(serializers.ModelSerializer):
             username=validated_data["username"],
             password=validated_data["password"],
         )
+
+from rest_framework import serializers
+from .models import Book, Opinion
+
+class BookDetailSerializer(serializers.ModelSerializer):
+    opinions = serializers.SerializerMethodField()
+    copies_available = serializers.BooleanField()
+    available_copies = serializers.IntegerField()
+    can_add_opinion = serializers.SerializerMethodField()
+    notifications_enabled = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Book
+        fields = (
+            'id',
+            'title',
+            'author',
+            'description',
+            'opinions',
+            'copies_available',
+            'available_copies',
+            'can_add_opinion',
+            'notifications_enabled',
+        )
+
+    def get_opinions(self, obj):
+        # Assuming you want to return a list of opinions related to this book
+        opinions = Opinion.objects.filter(book=obj)
+        return OpinionSerializer(opinions, many=True).data
+
+    def get_can_add_opinion(self, obj):
+        # Logic to determine if the user can add an opinion
+        user = self.context.get('request').user
+        return user.has_borrowed_book(obj)
+
+    def get_notifications_enabled(self, obj):
+        # Logic to check if notifications are enabled for the user
+        user = self.context.get('request').user
+        return user.notifications_enabled
+
+
+class CustomUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ["id", "username", "email", "first_name", "last_name"]

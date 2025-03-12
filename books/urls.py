@@ -4,12 +4,17 @@ from django.conf import settings
 from django.conf.urls.static import static
 from books import views
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
 
 urlpatterns = [
-    path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("register/", views.UserRegistrationView.as_view(), name="register"),
+    
+    path('schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('swagger-ui/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('schema/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
     
     path(
         "dashboard/customer/<int:pk>",
@@ -37,7 +42,7 @@ urlpatterns = [
     path("books/<int:pk>/edit/", views.EditBookView.as_view(), name="edit_book"),
     path("books/<int:pk>/delete/", views.DeleteBookView.as_view(), name="delete_book"),
     path("books/<int:pk>/borrow/", views.BorrowBookView.as_view(), name="borrow_book"),
-    path("books/<int:pk>/return/", views.ReturnBook.as_view(), name="return_book"),
+    path("books/<int:pk>/return/", views.ReturnBookView.as_view(), name="return_book"),
     path(
         "books/<int:pk>/extend/",
         views.ExtendRentalPeriodView.as_view(),

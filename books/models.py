@@ -69,7 +69,7 @@ class BookCopy(models.Model):
     is_available = models.BooleanField(default=True)
     borrower = models.ForeignKey(
         CustomUser, on_delete=models.SET_NULL, null=True, blank=True
-    )  # Użytkownik wypożyczający
+    )
 
     def __str__(self):
         return f"{self.book.title} - Copy {self.id}"

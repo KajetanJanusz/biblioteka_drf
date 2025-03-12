@@ -4,6 +4,8 @@ from django.contrib.messages.views import SuccessMessageMixin
 from django.contrib.auth import login, logout
 from django.contrib.auth.views import LoginView
 from rest_framework.views import APIView
+from rest_framework.generics import ListAPIView, RetrieveAPIView, UpdateAPIView, CreateAPIView
+from django.db.models import Exists, OuterRef
 
 from django.contrib import messages
 from django.db.models.query import QuerySet
@@ -20,10 +22,11 @@ from django.contrib.auth.views import (
     PasswordResetConfirmView,
     PasswordResetCompleteView,
 )
+from core import schemas
 from django.contrib.auth.forms import PasswordResetForm
 from django.core.exceptions import ValidationError
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import status
 
 from books.models import (
@@ -61,6 +64,7 @@ class DashboardClientView(APIView):
 
     permission_classes = [IsAuthenticated, IsCustomerPermission]
 
+    # @schemas.dashboard_client_schema
     def get(self, request, pk=None):
         user = request.user
 
@@ -128,6 +132,7 @@ class ArticlesView(APIView):
     """
     permission_classes = [IsAuthenticated, IsCustomerPermission]
 
+    # @schemas.articles_view_customer_schema
     def get(self, request, *args, **kwargs):
         if "articles" in request.session:
             articles = request.session["articles"]
@@ -144,6 +149,7 @@ class MarkNotificationAsReadView(APIView):
     """
     permission_classes = [IsAuthenticated, IsCustomerPermission]
 
+    # @schemas.mark_notification_as_read_customer_schema
     def post(self, request, pk):
         serializer = serializers.MarkReadNotificationAsReadSerializer(data=request.data)
         if not serializer.is_valid():
@@ -184,6 +190,7 @@ class BorrowBookView(APIView):
 
     permission_classes = [IsAuthenticated, IsCustomerPermission]
 
+    # @schemas.borrow_book_customer_schema
     def post(self, request, pk):
         serializer = serializers.BorrowBookSerializer(data=request.data)
         user = request.user
@@ -247,7 +254,7 @@ class BorrowBookView(APIView):
         )
 
 
-class ReturnBookAPIView(APIView):
+class ReturnBookView(APIView):
     """
     API obsługujące zwrot książki.
 
@@ -260,6 +267,7 @@ class ReturnBookAPIView(APIView):
     """
     permission_classes = [IsAuthenticated, IsCustomerPermission]
 
+    # @schemas.return_book_customer_schema
     def post(self, request, pk):
         """Obsługuje zwrot książki"""
         serializer = serializers.RentalIDSerializer(data=request.data)
@@ -287,7 +295,7 @@ class ReturnBookAPIView(APIView):
         )
 
 
-class ExtendRentalPeriodView(LoginRequiredMixin, APIViewView):
+class ExtendRentalPeriodView(APIView):
     """
     Widok umożliwiający przedłużenie okresu wypożyczenia.
 
@@ -300,6 +308,7 @@ class ExtendRentalPeriodView(LoginRequiredMixin, APIViewView):
     """
     permission_classes = [IsAuthenticated, IsCustomerPermission]
 
+    # @schemas.extend_rental_customer_schema
     def post(self, request, *args, **kwargs):
         serializer = serializers.RentalIDSerializer(data=request.data)
         if not serializer.is_valid():
@@ -319,7 +328,7 @@ class ExtendRentalPeriodView(LoginRequiredMixin, APIViewView):
         return Response({"error": "Wypożyczenie zostało już przedłużone"}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class ListBooksView(LoginRequiredMixin, ListView):
+class ListBooksView(ListAPIView):
     """
     Widok wyświetlający listę książek.
 
@@ -334,6 +343,7 @@ class ListBooksView(LoginRequiredMixin, ListView):
     permission_classes = [IsAuthenticated, IsCustomerPermission]
     serializer_class = serializers.ListBookSerializer
 
+    # @schemas.list_books_customer_schema
     def get(self, request, *args, **kwargs):
         books = Book.objects.prefetch_related("copies").order_by("title")
         category_counts = Book.objects.values("category__name").annotate(count=Count("id"))
@@ -345,7 +355,7 @@ class ListBooksView(LoginRequiredMixin, ListView):
         }, status=status.HTTP_200_OK)
 
 
-class DetailBookView(LoginRequiredMixin, DetailView):
+class DetailBookView(RetrieveAPIView):
     """
     Widok szczegółów książki.
 
@@ -357,58 +367,15 @@ class DetailBookView(LoginRequiredMixin, DetailView):
 
         Wymaga logowania.
     """
-
-    model = Book
-    template_name = "detail_book.html"
-    context_object_name = "book"
-
-    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
-        context = super().get_context_data(**kwargs)
-        book = self.get_object()
-
-        context.update(
-            {
-                "opinions": Opinion.objects.filter(book=book),
-                "copies": BookCopy.objects.filter(book=book),
-                "copies_available": BookCopy.objects.filter(
-                    book=book, is_available=True
-                ).exists(),
-                "available_copies": BookCopy.objects.filter(
-                    book=book, is_available=True
-                ).count(),
-            }
-        )
-
-        if (
-            BookRental.objects.filter(
-                book_copy__book=book, user=self.request.user
-            ).exists()
-            and not Opinion.objects.filter(book=book, user=self.request.user).exists()
-        ):
-            context["comment_form"] = serializers.OpinionForm()
-
-        return context
-
-    def post(self, request, *args, **kwargs):
-        book = self.get_object()
-        form = serializers.OpinionForm(request.POST)
-
-        if form.is_valid():
-            try:
-                comment = form.save(commit=False)
-                comment.book = book
-                comment.user = self.request.user
-                comment.full_clean()
-                comment.save()
-                return redirect("detail_book", pk=book.id)
-            except ValidationError:
-                messages.error(self.request, "Nieprawidłowa ocena")
-
-        messages.error(self.request, "Ocena musi być od 0 do 5")
-        return redirect("detail_book", pk=book.id)
+    permission_classes = [IsAuthenticated, IsCustomerPermission]
+    serializer_class = serializers.BookDetailSerializer
+    queryset = Book.objects.annotate(
+        copies_available=Exists(BookCopy.objects.filter(book=OuterRef("pk"), is_available=True)),
+        available_copies=Count("copies", filter=Q(copies__is_available=True))
+    )
 
 
-class SubscribeBookView(LoginRequiredMixin, CustomerMixin, View):
+class SubscribeBookView(APIView):
     """
     Widok obsługujący subskrypcję powiadomień o książce.
 
@@ -419,25 +386,26 @@ class SubscribeBookView(LoginRequiredMixin, CustomerMixin, View):
         Wymaga logowania i dostępu klienta.
     """
 
+    permission_classes = [IsAuthenticated, IsCustomerPermission]
+
     def post(self, request, *args, **kwargs):
-        user = self.request.user
-        book = get_object_or_404(Book, id=self.kwargs["pk"])
+        user = request.user
+        try:
+            book = Book.objects.get(id=request.data["id"])
+        except Book.DoesNotExist:
+            return Response({"error": "Książka z tym id nie istnieje"}, status=status.HTTP_400_BAD_REQUEST)
 
         _, created = Notification.objects.get_or_create(
             user=user, book=book, is_available=False
         )
 
         if not created:
-            messages.info(
-                request, "Już masz włączone powiadomienia odnośnie tej książki"
-            )
-        else:
-            messages.success(request, "Powiadomienia włączone pomyślnie")
+            return Response({"message": "Już masz włączone powiadomienia odnośnie tej książki"}, status=status.HTTP_200_OK)
 
-        return redirect("dashboard_client", pk=user.id)
+        return Response({"message": "Powiadomienia włączone pomyślnie"}, status=status.HTTP_201_CREATED)
 
 
-class DashboardEmployeeView(LoginRequiredMixin, EmployeeMixin, DetailView):
+class DashboardEmployeeView(APIView):
     """
     Widok pulpitu pracownika.
 
@@ -450,13 +418,10 @@ class DashboardEmployeeView(LoginRequiredMixin, EmployeeMixin, DetailView):
         Wymaga logowania i dostępu pracownika.
     """
 
-    model = CustomUser
-    template_name = "dashboard_employee.html"
-    context_object_name = "user"
+    permission_classes = [IsAuthenticated, IsEmployeePermission]
 
-    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
-        context = super().get_context_data(**kwargs)
-        user = self.get_object()
+    def get(self, request, *args, **kwargs):
+        user = request.user
 
         most_rented_books = (
             BookRental.objects.values("book_copy__book__title")
@@ -464,34 +429,50 @@ class DashboardEmployeeView(LoginRequiredMixin, EmployeeMixin, DetailView):
             .order_by("-rental_count")[:3]
         )
 
-        context.update(
-            {
-                "users_rented_books": BookRental.objects.filter(
-                    user=user, status="rented"
-                ),
-                "rented_books": BookRental.objects.filter(status="rented"),
-                "rented_books_old": BookRental.objects.filter(
-                    user=user, status="returned"
-                ),
-                "notifications": Notification.objects.filter(
+        data = {
+            "users_rented_books": list(
+                BookRental.objects.filter(user=user, status="rented").values(
+                    "id", "book_copy__book__title", "due_date"
+                )
+            ),
+            "rented_books": list(
+                BookRental.objects.filter(status="rented").values(
+                    "id", "book_copy__book__title", "user__username", "due_date"
+                )
+            ),
+            "rented_books_old": list(
+                BookRental.objects.filter(user=user, status="returned").values(
+                    "id", "book_copy__book__title", "due_date"
+                )
+            ),
+            "notifications": list(
+                Notification.objects.filter(
                     user=user, is_read=False, is_available=True
-                ),
-                "customers": CustomUser.objects.filter(is_employee=False),
-                "all_users": CustomUser.objects.all(),
-                "overdue_rentals": BookRental.objects.filter(status="overdue"),
-                "most_rented_books": most_rented_books,
-                "total_rentals": most_rented_books.aggregate(total=Sum("rental_count"))[
-                    "total"
-                ]
-                or 0,
-                "returns_to_approve": BookRental.objects.filter(status="pending"),
-            }
-        )
+                ).values("id", "book__title", "created_at")
+            ),
+            "customers": list(
+                CustomUser.objects.filter(is_employee=False).values("id", "username", "email")
+            ),
+            "all_users": list(CustomUser.objects.values("id", "username", "email")),
+            "overdue_rentals": list(
+                BookRental.objects.filter(status="overdue").values(
+                    "id", "book_copy__book__title", "user__username", "due_date"
+                )
+            ),
+            "most_rented_books": list(most_rented_books),
+            "total_rentals": most_rented_books.aggregate(total=Sum("rental_count"))["total"]
+            or 0,
+            "returns_to_approve": list(
+                BookRental.objects.filter(status="pending").values(
+                    "id", "book_copy__book__title", "user__username"
+                )
+            ),
+        }
 
-        return context
+        return Response(data, status=status.HTTP_200_OK)
 
 
-class AddBookView(LoginRequiredMixin, EmployeeMixin, CreateView):
+class AddBookView(CreateAPIView):
     """
     Widok dodawania nowej książki.
 
@@ -502,28 +483,27 @@ class AddBookView(LoginRequiredMixin, EmployeeMixin, CreateView):
         Wymaga logowania i dostępu pracownika.
     """
 
-    template_name = "add_books.html"
-    form_class = serializers.AddBookForm
-    success_url = reverse_lazy("list_books")
+    permission_classes = [IsAuthenticated, IsEmployeePermission]
 
-    def form_valid(self, form):
-        book = form.save(commit=False)
-        total_copies = form.cleaned_data["total_copies"]
-        title = form.cleaned_data["title"]
-        author = form.cleaned_data["author"]
+    def post(self, request, *args, **kwargs):
+        serializer = serializers.AddBookSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        title = serializer.validated_data["title"]
+        author = serializer.validated_data["author"]
+        total_copies = serializer.validated_data["total_copies"]
 
         ai_description = get_ai_generated_description(title, author)
-        book.description = ai_description
-        book.save()
 
-        BookCopy.objects.bulk_create([BookCopy(book=book) for _ in range(total_copies)])
+        book = Book.objects.create(title=title, author=author, description=ai_description)
+        book_copies = [BookCopy(book=book) for _ in range(total_copies)]
+        BookCopy.objects.bulk_create(book_copies)
 
-        messages.success(self.request, "Pomyślnie dodano książkę")
-
-        return super().form_valid(form)
+        return Response({"message": "Pomyślnie dodano książkę"}, status=status.HTTP_201_CREATED)
 
 
-class EditBookView(LoginRequiredMixin, EmployeeMixin, UpdateView):
+class EditBookView(APIView):
     """
     Widok edycji książki.
 
@@ -534,57 +514,43 @@ class EditBookView(LoginRequiredMixin, EmployeeMixin, UpdateView):
         Wymaga logowania i dostępu pracownika.
     """
 
-    model = Book
-    form_class = serializers.EditBookForm
-    template_name = "edit_books.html"
-    context_object_name = "book"
-    success_url = reverse_lazy("list_books")
+    permission_classes = [IsAuthenticated, IsEmployeePermission]
 
-    def form_valid(self, form):
-        book = self.get_object()
-        old_total_copies = book.total_copies
-        new_total_copies = form.cleaned_data["total_copies"]
+    def put(self, request, pk, *args, **kwargs):
+        serializer = serializers.EditBookSerializer(data=request.data)
 
+        if not serializer.is_valid():
+            return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            book = Book.objects.get(id=serializer.validated_data["id"])
+        except Book.DoesNotExist:
+            return Response({"error": "Książka z tym id nie istnieje"}, status=status.HTTP_400_BAD_REQUEST)
+
+        new_total_copies = serializer.validated_data["total_copies"]
+        old_total_copies = book.copies.count()
         copies_difference = old_total_copies - new_total_copies
 
+        book.title = serializer.validated_data["title"]
+        book.author = serializer.validated_data["author"]
+        book.save()
+
         if copies_difference > 0:
-            available_copies_count = BookCopy.objects.filter(
-                book=book, is_available=True
-            ).count()
-
-            borrowed_copies_count = BookCopy.objects.filter(
-                book=book, is_available=False
-            ).count()
-
-            if copies_difference > available_copies_count:
-                messages.error(
-                    self.request,
-                    f"Nie można usunąć {copies_difference} egzemplarzy. "
-                    f"Dostępnych jest tylko {available_copies_count} egzemplarzy, "
-                    f"a {borrowed_copies_count} jest aktualnie wypożyczonych.",
+            available_copies = BookCopy.objects.filter(book=book, is_available=True)
+            if copies_difference > available_copies.count():
+                return Response(
+                    {"error": f"Nie można usunąć {copies_difference} egzemplarzy. "
+                                f"Dostępnych jest tylko {available_copies.count()}."},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
-                return self.form_invalid(form)
-
-            copies_to_delete_pks = BookCopy.objects.filter(
-                book=book, is_available=True
-            ).values_list("pk", flat=True)[:copies_difference]
-
-            BookCopy.objects.filter(pk__in=copies_to_delete_pks).delete()
-
+            available_copies[:copies_difference].delete()
         elif copies_difference < 0:
-            BookCopy.objects.bulk_create(
-                [
-                    BookCopy(book=book, is_available=True)
-                    for _ in range(abs(copies_difference))
-                ]
-            )
+            BookCopy.objects.bulk_create([BookCopy(book=book) for _ in range(abs(copies_difference))])
 
-        Book.objects.filter(pk=book.pk).update(**form.cleaned_data)
-
-        return redirect(self.success_url)
+        return Response({"message": "Książka została zaktualizowana"}, status=status.HTTP_200_OK)
 
 
-class DeleteBookView(LoginRequiredMixin, EmployeeMixin, View):
+class DeleteBookView(APIView):
     """
     Widok usuwania książki.
 
@@ -594,22 +560,35 @@ class DeleteBookView(LoginRequiredMixin, EmployeeMixin, View):
 
         Wymaga logowania i dostępu pracownika.
     """
+    permission_classes = [IsAuthenticated, IsEmployeePermission]
 
-    def get(self, request, pk):
-        book = Book.objects.get(pk=pk)
-        return render(request, "delete_books.html", {"book": book})
+    def delete(self, request):
+        try:
+            book = Book.objects.get(id=request.data["id"])
+        except Book.DoesNotExist:
+            return Response({"error": "Książka z tym id nie istnieje"}, status=status.HTTP_400_BAD_REQUEST)
+        book.delete()
+        return Response({"message": "Książka została usunięta"}, status=status.HTTP_204_NO_CONTENT)
+
+
+class ApproveReturnView(APIView):
+    """
+    API endpoint do zatwierdzania zwrotu książki.
+
+        Funkcje:
+        - Zmienia status wypożyczenia na "returned"
+        - Aktualizuje dostępność egzemplarza książki
+        - Wysyła powiadomienia do użytkownika
+
+        Wymaga logowania i dostępu pracownika.
+    """
+    permission_classes = [IsAuthenticated, IsEmployeePermission]
 
     def post(self, request, pk):
-        book = Book.objects.get(pk=pk)
-        book.delete()
-
-        messages.success(request, "Książka usunięta")
-        return redirect("dashboard_client", pk=request.user.id)
-
-
-class ApproveReturnView(LoginRequiredMixin, EmployeeMixin, View):
-    def post(self, request, *args, **kwargs):
-        rental = get_object_or_404(BookRental, id=self.kwargs["pk"])
+        try:
+            rental = BookRental.objects.get(id=request.data["id"])
+        except BookRental.DoesNotExist:
+            return Response({"error": "Zwrot z tym id nie istnieje"}, status=status.HTTP_400_BAD_REQUEST)
 
         rental.status = "returned"
         rental.return_date = date.today()
@@ -634,11 +613,12 @@ class ApproveReturnView(LoginRequiredMixin, EmployeeMixin, View):
             message=f"Zwrot książki {book.title} został zatwierdzony",
         )
 
-        messages.success(request, "Zwrot przetworzony")
-        return redirect("dashboard_employee", pk=request.user.id)
+        return Response(
+            {"message": "Zwrot książki został zatwierdzony"}, status=status.HTTP_200_OK
+        )
 
 
-class ListBorrowsView(LoginRequiredMixin, EmployeeMixin, ListView):
+class ListBorrowsView(ListAPIView):
     """
     Widok listy wypożyczeń.
 
@@ -649,9 +629,8 @@ class ListBorrowsView(LoginRequiredMixin, EmployeeMixin, ListView):
         Wymaga logowania i dostępu pracownika.
     """
 
-    model = BookRental
-    template_name = "list_borrows.html"
-    paginate_by = 4
+    permission_classes = [IsAuthenticated, IsEmployeePermission]
+    serializer_class = serializers.BookRentalSerializer
 
     def get_queryset(self):
         status_order = Case(
@@ -667,7 +646,7 @@ class ListBorrowsView(LoginRequiredMixin, EmployeeMixin, ListView):
         )
 
 
-class ListUsersView(LoginRequiredMixin, EmployeeMixin, ListView):
+class ListUsersView(ListAPIView):
     """
     Widok listy użytkowników.
 
@@ -677,11 +656,12 @@ class ListUsersView(LoginRequiredMixin, EmployeeMixin, ListView):
         Wymaga logowania i dostępu pracownika.
     """
 
-    model = CustomUser
-    template_name = "list_users.html"
+    permission_classes = [IsAuthenticated, IsEmployeePermission]
+    serializer_class = serializers.CustomUserSerializer
+    queryset = CustomUser.objects.all()
 
 
-class DetailUserView(LoginRequiredMixin, EmployeeMixin, DetailView):
+class DetailUserView(RetrieveAPIView):
     """
     Widok szczegółów użytkownika.
 
@@ -690,15 +670,17 @@ class DetailUserView(LoginRequiredMixin, EmployeeMixin, DetailView):
 
         Wymaga logowania i dostępu pracownika.
     """
+    
+    permission_classes = [IsAuthenticated, IsEmployeePermission]
+    queryset = CustomUser.objects.all()
+    serializer_class = serializers.CustomUserSerializer
 
-    model = CustomUser
-    template_name = "detail_user.html"
-    context_object_name = "user"
+    def get_object(self):
+        return self.request.user
 
-
-class EditUserView(LoginRequiredMixin, UpdateView):
+class EditUserView(UpdateAPIView):
     """
-    Widok edycji użytkownika.
+        Widok edycji użytkownika.
 
         Funkcje:
         - Umożliwia modyfikację danych użytkownika
@@ -707,23 +689,22 @@ class EditUserView(LoginRequiredMixin, UpdateView):
         Wymaga logowania.
     """
 
-    model = CustomUser
-    form_class = serializers.EditUserForm
-    template_name = "edit_user.html"
+    permission_classes = [IsAuthenticated, IsEmployeePermission]
+    queryset = CustomUser.objects.all()
+    serializer_class = serializers.EditUserSerializer
 
-    def get_success_url(self):
-        user = self.object
-        return reverse(
-            "dashboard_employee" if user.is_employee else "dashboard_client",
-            kwargs={"pk": user.id},
-        )
+    def get_object(self):
+        return self.request.user
 
-    def form_valid(self, form):
-        messages.success(self.request, "Dane zmienione poprawnie.")
-        return super().form_valid(form)
+    def perform_update(self, serializer):
+        user = serializer.save()
+        if user.is_employee:
+            return reverse("dashboard_employee", kwargs={"pk": user.id})
+        else:
+            return reverse("dashboard_client", kwargs={"pk": user.id})
 
 
-class ActiveUserView(LoginRequiredMixin, AdminMixin, View):
+class ActiveUserView(APIView):
     """
     Widok zmiany statusu aktywności użytkownika.
 
@@ -732,15 +713,16 @@ class ActiveUserView(LoginRequiredMixin, AdminMixin, View):
 
         Wymaga logowania i dostępu administratora.
     """
+    permission_classes = [IsAuthenticated, IsEmployeePermission]
 
-    def post(self, request, pk):
-        user = CustomUser.objects.get(pk=pk)
+    def post(self, request):
+        user = CustomUser.objects.get(id=request.data["id"])
         user.is_active = not user.is_active
         user.save()
-        return redirect("detail_user", pk=pk)
+        return Response({"message": "User status changed."}, status=status.HTTP_200_OK)
 
 
-class DeleteUserView(LoginRequiredMixin, AdminMixin, View):
+class DeleteUserView(APIView):
     """
     Widok usuwania użytkownika.
 
@@ -750,136 +732,38 @@ class DeleteUserView(LoginRequiredMixin, AdminMixin, View):
 
         Wymaga logowania i dostępu administratora.
     """
+    permission_classes = [IsAuthenticated, IsEmployeePermission]
 
-    def get(self, request, pk):
-        user = CustomUser.objects.get(pk=pk)
-        return render(request, "delete_user.html", {"user": user})
-
-    def post(self, request, pk):
-        user = CustomUser.objects.get(pk=pk)
+    def post(self, request):
+        user = CustomUser.objects.get(id=request.data["id"])
         user.delete()
 
-        messages.success(request, "Użytkownik usunięty")
-        return redirect("list_users")
+        return Response({"message": "User deleted"}, status=status.HTTP_200_OK)
 
 
-class AddUserView(LoginRequiredMixin, AdminMixin, CreateView):
+class AddUserView(CreateAPIView):
     """
     Widok dodawania nowego użytkownika.
 
-        Funkcje:
-        - Umożliwia utworzenie nowego konta użytkownika
+    Funkcje:
+    - Umożliwia utworzenie nowego konta użytkownika
 
-        Wymaga logowania i dostępu administratora.
+    Wymaga logowania i dostępu administratora.
     """
 
-    template_name = "add_user.html"
-    form_class = serializers.AdminUserForm
-    success_url = reverse_lazy("list_users")
+    queryset = CustomUser
+    serializer_class = serializers.AdminUserSerializer
+    permission_classes = [IsAuthenticated, IsAdminPermission]
 
 
-class CustomPasswordResetView(PasswordResetView):
+class UserRegistrationView(CreateAPIView):
     """
-    Widok resetowania hasła.
-
-        Funkcje:
-        - Inicjuje proces resetowania hasła
-        - Wysyła email z instrukcjami
-    """
-
-    template_name = "password_reset.html"
-    email_template_name = "password_reset_email.html"
-    success_url = reverse_lazy("password_reset_done")
-    form_class = PasswordResetForm
-
-
-class UserRegistrationView(SuccessMessageMixin, CreateView):
-    """
-    Widok rejestracji użytkownika.
+        Widok rejestracji użytkownika.
 
         Funkcje:
         - Wyświetla formularz rejestracji
         - Przekierowuje zalogowanych użytkowników
     """
 
-    form_class = serializers.UserRegistrationForm
-    template_name = "register.html"
-    success_message = "Konto zostało utworzone pomyślnie! Możesz się teraz zalogować."
-
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-        form.fields["username"].label = "Nazwa użytkownika"
-        form.fields["password1"].label = "Hasło"
-        form.fields["password2"].label = "Powtórz hasło"
-
-        return form
-
-    def dispatch(self, request, *args, **kwargs):
-        if request.user.is_authenticated and request.user.is_employee:
-            return redirect("dashboard_employee", pk=request.user.id)
-        elif request.user.is_authenticated and not request.user.is_employee:
-            return redirect("dashboard_client", pk=request.user.id)
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_success_url(self):
-        return reverse_lazy("login")
-
-
-class UserLoginView(SuccessMessageMixin, LoginView):
-    """
-    Widok logowania użytkownika.
-
-        Funkcje:
-        - Umożliwia zalogowanie się do systemu
-        - Przekierowuje do odpowiedniego pulpitu
-        - Obsługuje błędy logowania
-    """
-
-    form_class = serializers.UserLoginForm
-    template_name = "login.html"
-    success_message = "Zostałeś pomyślnie zalogowany!"
-
-    def get_success_url(self):
-        return reverse("dashboard_client", kwargs={"pk": self.request.user.id})
-
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-        form.fields["username"].label = "Nazwa użytkownika"
-        form.fields["password"].label = "Hasło"
-
-        return form
-
-    def form_invalid(self, form):
-        messages.error(
-            self.request, "Dane są nieprawidłowe lub twoje konto jest zablokowane."
-        )
-        return redirect("login")
-
-    def dispatch(self, request, *args, **kwargs):
-        if (
-            request.user.is_authenticated
-            and request.user.is_employee
-            and request.user.is_active
-        ):
-            return redirect("dashboard_employee", pk=request.user.id)
-        elif (
-            request.user.is_authenticated
-            and not request.user.is_employee
-            and request.user.is_active
-        ):
-            return redirect("dashboard_client", pk=request.user.id)
-        return super().dispatch(request, *args, **kwargs)
-
-
-class UserLogoutView(View):
-    """
-    Widok wylogowania użytkownika.
-
-        Funkcje:
-        - Kończy sesję użytkownika
-        - Przekierowuje do strony logowania
-    """
-
-    def get(self, request):
-        logout(request)
-        return redirect("login")
+    serializer_class = serializers.UserSerializer
+    permission_classes = [AllowAny]
