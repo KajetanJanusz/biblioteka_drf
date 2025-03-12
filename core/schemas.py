@@ -30,11 +30,11 @@
 #                     {"book_title": "Recommended Book 2", "author": "Author 2"}
 #                 ],
 #                 "badges": {
-#                     "id": 1, 
-#                     "first_book": True, 
-#                     "ten_books": False, 
-#                     "twenty_books": True, 
-#                     "hundred_books": False, 
+#                     "id": 1,
+#                     "first_book": True,
+#                     "ten_books": False,
+#                     "twenty_books": True,
+#                     "hundred_books": False,
 #                     "three_categories": True
 #                 },
 #                 "average_user_rents": 5,

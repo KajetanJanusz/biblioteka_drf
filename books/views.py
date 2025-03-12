@@ -1,30 +1,15 @@
 from datetime import date, timedelta
-from typing import Any
-from django.contrib.messages.views import SuccessMessageMixin
-from django.contrib.auth import login, logout
-from django.contrib.auth.views import LoginView
 from rest_framework.views import APIView
-from rest_framework.generics import ListAPIView, RetrieveAPIView, UpdateAPIView, CreateAPIView
+from rest_framework.generics import (
+    ListAPIView,
+    RetrieveAPIView,
+    UpdateAPIView,
+    CreateAPIView,
+)
 from django.db.models import Exists, OuterRef
 
-from django.contrib import messages
-from django.db.models.query import QuerySet
-from django.shortcuts import redirect, render, get_object_or_404
-from django.http import HttpRequest, HttpResponse
-from django.urls import reverse, reverse_lazy
-from django.views import View
-from django.views.generic import DetailView, ListView, CreateView, UpdateView
-from django.contrib.auth.mixins import LoginRequiredMixin
+from django.urls import reverse
 from django.db.models import Q, Count, Case, When, Value, IntegerField, Sum
-from django.contrib.auth.views import (
-    PasswordResetView,
-    PasswordResetDoneView,
-    PasswordResetConfirmView,
-    PasswordResetCompleteView,
-)
-from core import schemas
-from django.contrib.auth.forms import PasswordResetForm
-from django.core.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import status
@@ -34,7 +19,6 @@ from books.models import (
     Book,
     BookRental,
     BookCopy,
-    Category,
     Notification,
     Opinion,
 )
@@ -130,6 +114,7 @@ class ArticlesView(APIView):
     API zwracające artykuły o książkach.
     Wymaga uwierzytelnienia.
     """
+
     permission_classes = [IsAuthenticated, IsCustomerPermission]
 
     # @schemas.articles_view_customer_schema
@@ -147,6 +132,7 @@ class MarkNotificationAsReadView(APIView):
     API do oznaczania powiadomień jako przeczytane.
     Wymaga uwierzytelnienia i uprawnień klienta.
     """
+
     permission_classes = [IsAuthenticated, IsCustomerPermission]
 
     # @schemas.mark_notification_as_read_customer_schema
@@ -154,24 +140,27 @@ class MarkNotificationAsReadView(APIView):
         serializer = serializers.MarkReadNotificationAsReadSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(
-                {"error": serializer.error_messages}, 
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": serializer.error_messages}, status=status.HTTP_400_BAD_REQUEST
             )
-            
+
         try:
             notification = Notification.objects.get(id=request.data["id"])
         except Notification.DoesNotExist:
             return Response(
-            {"error": "Niepoprawne id.",},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+                {
+                    "error": "Niepoprawne id.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         notification.is_read = True
         notification.save()
-        
+
         return Response(
-            {"message": "Odczytane.",},
-            status=status.HTTP_200_OK
+            {
+                "message": "Odczytane.",
+            },
+            status=status.HTTP_200_OK,
         )
 
 
@@ -194,11 +183,10 @@ class BorrowBookView(APIView):
     def post(self, request, pk):
         serializer = serializers.BorrowBookSerializer(data=request.data)
         user = request.user
-        
+
         if not serializer.is_valid():
             return Response(
-                {"error": serializer.errors}, 
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST
             )
 
         book = Book.objects.get(id=serializer.validated_data["id"])
@@ -208,13 +196,13 @@ class BorrowBookView(APIView):
             .filter(book=book, is_available=True)
             .first()
         )
-        
+
         if not available_copy:
             return Response(
                 {"error": "Nie ma wolnych egzemplarzy"},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
-        
+
         user_rentals_count = BookRental.objects.filter(
             Q(user=user.id) & (Q(status="rented") | Q(status="pending"))
         ).count()
@@ -222,7 +210,7 @@ class BorrowBookView(APIView):
         if user_rentals_count >= 3:
             return Response(
                 {"error": f"Zwróć inną książkę, żeby wypożyczyć {book.title}"},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         available_copy.is_available = False
@@ -236,7 +224,7 @@ class BorrowBookView(APIView):
             due_date=date.today() + timedelta(days=30),
             status="rented",
         )
-        
+
         rental_data = {
             "book_title": book.title,
             "rental_date": rental.rental_date,
@@ -246,11 +234,8 @@ class BorrowBookView(APIView):
         }
 
         return Response(
-            {
-                "message": "Książka wypożyczona",
-                "rental": rental_data
-            },
-            status=status.HTTP_201_CREATED
+            {"message": "Książka wypożyczona", "rental": rental_data},
+            status=status.HTTP_201_CREATED,
         )
 
 
@@ -265,33 +250,33 @@ class ReturnBookView(APIView):
 
     Wymaga logowania i dostępu klienta.
     """
+
     permission_classes = [IsAuthenticated, IsCustomerPermission]
 
     # @schemas.return_book_customer_schema
     def post(self, request, pk):
         """Obsługuje zwrot książki"""
         serializer = serializers.RentalIDSerializer(data=request.data)
-        
+
         if not serializer.is_valid():
             return Response(
-                {"error": serializer.errors}, 
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST
             )
-            
+
         rental = BookRental.objects.get(id=serializer.validated_data["id"])
-        
+
         rental.status = "pending"
         rental.save()
-        
+
         return Response(
             {
                 "message": "Zwrot oczekuje na zatwierdzenie",
                 "rental": {
                     "id": rental.id,
                     "status": rental.status,
-                }
+                },
             },
-            status=status.HTTP_200_OK
+            status=status.HTTP_200_OK,
         )
 
 
@@ -306,6 +291,7 @@ class ExtendRentalPeriodView(APIView):
 
         Wymaga logowania i dostępu klienta.
     """
+
     permission_classes = [IsAuthenticated, IsCustomerPermission]
 
     # @schemas.extend_rental_customer_schema
@@ -313,19 +299,23 @@ class ExtendRentalPeriodView(APIView):
         serializer = serializers.RentalIDSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(
-                {"error": serializer.errors}, 
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST
             )
-            
+
         rental = BookRental.objects.get(id=serializer.validated_data["id"])
-        
+
         if not rental.is_extended:
             rental.due_date += timedelta(days=7)
             rental.is_extended = True
             rental.save()
-            return Response({"message": "Wypożyczenie przedłużone"}, status=status.HTTP_200_OK)
-        
-        return Response({"error": "Wypożyczenie zostało już przedłużone"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"message": "Wypożyczenie przedłużone"}, status=status.HTTP_200_OK
+            )
+
+        return Response(
+            {"error": "Wypożyczenie zostało już przedłużone"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
 
 class ListBooksView(ListAPIView):
@@ -346,13 +336,15 @@ class ListBooksView(ListAPIView):
     # @schemas.list_books_customer_schema
     def get(self, request, *args, **kwargs):
         books = Book.objects.prefetch_related("copies").order_by("title")
-        category_counts = Book.objects.values("category__name").annotate(count=Count("id"))
-        
+        category_counts = Book.objects.values("category__name").annotate(
+            count=Count("id")
+        )
+
         serialized_books = self.get_serializer(books, many=True).data
-        return Response({
-            "books": serialized_books,
-            "category_counts": category_counts
-        }, status=status.HTTP_200_OK)
+        return Response(
+            {"books": serialized_books, "category_counts": category_counts},
+            status=status.HTTP_200_OK,
+        )
 
 
 class DetailBookView(RetrieveAPIView):
@@ -367,11 +359,14 @@ class DetailBookView(RetrieveAPIView):
 
         Wymaga logowania.
     """
+
     permission_classes = [IsAuthenticated, IsCustomerPermission]
     serializer_class = serializers.BookDetailSerializer
     queryset = Book.objects.annotate(
-        copies_available=Exists(BookCopy.objects.filter(book=OuterRef("pk"), is_available=True)),
-        available_copies=Count("copies", filter=Q(copies__is_available=True))
+        copies_available=Exists(
+            BookCopy.objects.filter(book=OuterRef("pk"), is_available=True)
+        ),
+        available_copies=Count("copies", filter=Q(copies__is_available=True)),
     )
 
 
@@ -393,16 +388,25 @@ class SubscribeBookView(APIView):
         try:
             book = Book.objects.get(id=request.data["id"])
         except Book.DoesNotExist:
-            return Response({"error": "Książka z tym id nie istnieje"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Książka z tym id nie istnieje"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         _, created = Notification.objects.get_or_create(
             user=user, book=book, is_available=False
         )
 
         if not created:
-            return Response({"message": "Już masz włączone powiadomienia odnośnie tej książki"}, status=status.HTTP_200_OK)
+            return Response(
+                {"message": "Już masz włączone powiadomienia odnośnie tej książki"},
+                status=status.HTTP_200_OK,
+            )
 
-        return Response({"message": "Powiadomienia włączone pomyślnie"}, status=status.HTTP_201_CREATED)
+        return Response(
+            {"message": "Powiadomienia włączone pomyślnie"},
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class DashboardEmployeeView(APIView):
@@ -451,7 +455,9 @@ class DashboardEmployeeView(APIView):
                 ).values("id", "book__title", "created_at")
             ),
             "customers": list(
-                CustomUser.objects.filter(is_employee=False).values("id", "username", "email")
+                CustomUser.objects.filter(is_employee=False).values(
+                    "id", "username", "email"
+                )
             ),
             "all_users": list(CustomUser.objects.values("id", "username", "email")),
             "overdue_rentals": list(
@@ -460,7 +466,9 @@ class DashboardEmployeeView(APIView):
                 )
             ),
             "most_rented_books": list(most_rented_books),
-            "total_rentals": most_rented_books.aggregate(total=Sum("rental_count"))["total"]
+            "total_rentals": most_rented_books.aggregate(total=Sum("rental_count"))[
+                "total"
+            ]
             or 0,
             "returns_to_approve": list(
                 BookRental.objects.filter(status="pending").values(
@@ -488,7 +496,9 @@ class AddBookView(CreateAPIView):
     def post(self, request, *args, **kwargs):
         serializer = serializers.AddBookSerializer(data=request.data)
         if not serializer.is_valid():
-            return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         title = serializer.validated_data["title"]
         author = serializer.validated_data["author"]
@@ -496,11 +506,15 @@ class AddBookView(CreateAPIView):
 
         ai_description = get_ai_generated_description(title, author)
 
-        book = Book.objects.create(title=title, author=author, description=ai_description)
+        book = Book.objects.create(
+            title=title, author=author, description=ai_description
+        )
         book_copies = [BookCopy(book=book) for _ in range(total_copies)]
         BookCopy.objects.bulk_create(book_copies)
 
-        return Response({"message": "Pomyślnie dodano książkę"}, status=status.HTTP_201_CREATED)
+        return Response(
+            {"message": "Pomyślnie dodano książkę"}, status=status.HTTP_201_CREATED
+        )
 
 
 class EditBookView(APIView):
@@ -520,12 +534,17 @@ class EditBookView(APIView):
         serializer = serializers.EditBookSerializer(data=request.data)
 
         if not serializer.is_valid():
-            return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response(
+                {"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST
+            )
+
         try:
             book = Book.objects.get(id=serializer.validated_data["id"])
         except Book.DoesNotExist:
-            return Response({"error": "Książka z tym id nie istnieje"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Książka z tym id nie istnieje"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         new_total_copies = serializer.validated_data["total_copies"]
         old_total_copies = book.copies.count()
@@ -539,15 +558,21 @@ class EditBookView(APIView):
             available_copies = BookCopy.objects.filter(book=book, is_available=True)
             if copies_difference > available_copies.count():
                 return Response(
-                    {"error": f"Nie można usunąć {copies_difference} egzemplarzy. "
-                                f"Dostępnych jest tylko {available_copies.count()}."},
+                    {
+                        "error": f"Nie można usunąć {copies_difference} egzemplarzy. "
+                        f"Dostępnych jest tylko {available_copies.count()}."
+                    },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             available_copies[:copies_difference].delete()
         elif copies_difference < 0:
-            BookCopy.objects.bulk_create([BookCopy(book=book) for _ in range(abs(copies_difference))])
+            BookCopy.objects.bulk_create(
+                [BookCopy(book=book) for _ in range(abs(copies_difference))]
+            )
 
-        return Response({"message": "Książka została zaktualizowana"}, status=status.HTTP_200_OK)
+        return Response(
+            {"message": "Książka została zaktualizowana"}, status=status.HTTP_200_OK
+        )
 
 
 class DeleteBookView(APIView):
@@ -560,15 +585,21 @@ class DeleteBookView(APIView):
 
         Wymaga logowania i dostępu pracownika.
     """
+
     permission_classes = [IsAuthenticated, IsEmployeePermission]
 
     def delete(self, request):
         try:
             book = Book.objects.get(id=request.data["id"])
         except Book.DoesNotExist:
-            return Response({"error": "Książka z tym id nie istnieje"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Książka z tym id nie istnieje"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         book.delete()
-        return Response({"message": "Książka została usunięta"}, status=status.HTTP_204_NO_CONTENT)
+        return Response(
+            {"message": "Książka została usunięta"}, status=status.HTTP_204_NO_CONTENT
+        )
 
 
 class ApproveReturnView(APIView):
@@ -582,13 +613,17 @@ class ApproveReturnView(APIView):
 
         Wymaga logowania i dostępu pracownika.
     """
+
     permission_classes = [IsAuthenticated, IsEmployeePermission]
 
     def post(self, request, pk):
         try:
             rental = BookRental.objects.get(id=request.data["id"])
         except BookRental.DoesNotExist:
-            return Response({"error": "Zwrot z tym id nie istnieje"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Zwrot z tym id nie istnieje"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         rental.status = "returned"
         rental.return_date = date.today()
@@ -670,7 +705,7 @@ class DetailUserView(RetrieveAPIView):
 
         Wymaga logowania i dostępu pracownika.
     """
-    
+
     permission_classes = [IsAuthenticated, IsEmployeePermission]
     queryset = CustomUser.objects.all()
     serializer_class = serializers.CustomUserSerializer
@@ -678,15 +713,16 @@ class DetailUserView(RetrieveAPIView):
     def get_object(self):
         return self.request.user
 
+
 class EditUserView(UpdateAPIView):
     """
-        Widok edycji użytkownika.
+    Widok edycji użytkownika.
 
-        Funkcje:
-        - Umożliwia modyfikację danych użytkownika
-        - Przekierowuje do odpowiedniego pulpitu po zapisie
+    Funkcje:
+    - Umożliwia modyfikację danych użytkownika
+    - Przekierowuje do odpowiedniego pulpitu po zapisie
 
-        Wymaga logowania.
+    Wymaga logowania.
     """
 
     permission_classes = [IsAuthenticated, IsEmployeePermission]
@@ -713,6 +749,7 @@ class ActiveUserView(APIView):
 
         Wymaga logowania i dostępu administratora.
     """
+
     permission_classes = [IsAuthenticated, IsEmployeePermission]
 
     def post(self, request):
@@ -732,6 +769,7 @@ class DeleteUserView(APIView):
 
         Wymaga logowania i dostępu administratora.
     """
+
     permission_classes = [IsAuthenticated, IsEmployeePermission]
 
     def post(self, request):
@@ -758,11 +796,11 @@ class AddUserView(CreateAPIView):
 
 class UserRegistrationView(CreateAPIView):
     """
-        Widok rejestracji użytkownika.
+    Widok rejestracji użytkownika.
 
-        Funkcje:
-        - Wyświetla formularz rejestracji
-        - Przekierowuje zalogowanych użytkowników
+    Funkcje:
+    - Wyświetla formularz rejestracji
+    - Przekierowuje zalogowanych użytkowników
     """
 
     serializer_class = serializers.UserSerializer

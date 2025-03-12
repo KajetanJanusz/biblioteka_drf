@@ -11,16 +11,24 @@ class ListBookSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Book
-        fields = ["id", "title", "author", "category", "description", "available_copies"]
-    
+        fields = [
+            "id",
+            "title",
+            "author",
+            "category",
+            "description",
+            "available_copies",
+        ]
+
     def get_available_copies(self, obj):
         return obj.copies.filter(is_available=True).count()
+
 
 class AddBookSerializer(serializers.ModelSerializer):
     class Meta:
         model = Book
         fields = [
-            "id", 
+            "id",
             "title",
             "author",
             "category",
@@ -29,39 +37,51 @@ class AddBookSerializer(serializers.ModelSerializer):
             "total_copies",
         ]
 
+
 class BookCopySerializer(serializers.ModelSerializer):
     class Meta:
         model = BookCopy
         fields = ["id", "book", "is_available", "borrower"]
 
+
 class EditBookSerializer(serializers.ModelSerializer):
     class Meta:
         model = Book
-        fields = ["id", "title", "author", "category", "isbn", "total_copies", "description"]
-        
+        fields = [
+            "id",
+            "title",
+            "author",
+            "category",
+            "isbn",
+            "total_copies",
+            "description",
+        ]
+
+
 class BorrowBookSerializer(serializers.ModelSerializer):
     class Meta:
         model = Book
-        fields = ['id']
-        
+        fields = ["id"]
+
     def validate_book_id(self, value):
         try:
             book = Book.objects.get(id=value)
         except Book.DoesNotExist:
             raise serializers.ValidationError("Książka o podanym ID nie istnieje.")
-        
+
+
 class RentalIDSerializer(serializers.ModelSerializer):
     class Meta:
         model = BookRental
-        fields = ['id']
-        
+        fields = ["id"]
+
     def validate_rental_id(self, value):
         try:
             rental = BookRental.objects.get(id=value)
         except BookRental.DoesNotExist:
             raise serializers.ValidationError("Wypożyczenie o podanym ID nie istnieje.")
-        
-        
+
+
 class EditUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
@@ -75,61 +95,50 @@ class OpinionSerializer(serializers.ModelSerializer):
 
 
 class BookRentalSerializer(serializers.ModelSerializer):
-    book_title = serializers.CharField(source='book_copy.book.title', read_only=True)
-    book_author = serializers.CharField(source='book_copy.book.author', read_only=True)
-    
+    book_title = serializers.CharField(source="book_copy.book.title", read_only=True)
+    book_author = serializers.CharField(source="book_copy.book.author", read_only=True)
+
     class Meta:
         model = BookRental
         fields = [
-            "id", 
-            'book_title', 
-            'book_author', 
-            'rental_date', 
-            'due_date', 
-            'return_date', 
-            'is_extended', 
-            'status',
-            'fine'
+            "id",
+            "book_title",
+            "book_author",
+            "rental_date",
+            "due_date",
+            "return_date",
+            "is_extended",
+            "status",
+            "fine",
         ]
 
 
 class NotificationSerializer(serializers.ModelSerializer):
-    book_title = serializers.CharField(source='book.title', read_only=True)
-    
+    book_title = serializers.CharField(source="book.title", read_only=True)
+
     class Meta:
         model = Notification
-        fields = [
-            'id',
-            'message', 
-            'is_read', 
-            'book_title',
-            'created_at'
-        ]
+        fields = ["id", "message", "is_read", "book_title", "created_at"]
 
 
 class OpinionSerializer(serializers.ModelSerializer):
-    book_title = serializers.CharField(source='book.title', read_only=True)
-    
+    book_title = serializers.CharField(source="book.title", read_only=True)
+
     class Meta:
         model = Opinion
-        fields = [
-            "id", 
-            'book_title', 
-            'rate', 
-            'comment', 
-            'created_at'
-        ]
+        fields = ["id", "book_title", "rate", "comment", "created_at"]
+
 
 class BadgeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Badge
         fields = [
-            "id", 
-            'first_book', 
-            'ten_books', 
-            'twenty_books', 
-            'hundred_books', 
-            'three_categories'
+            "id",
+            "first_book",
+            "ten_books",
+            "twenty_books",
+            "hundred_books",
+            "three_categories",
         ]
 
 
@@ -137,7 +146,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = [
-            "id", 
+            "id",
             "username",
             "first_name",
             "last_name",
@@ -155,8 +164,8 @@ class AdminUserSerializer(serializers.ModelSerializer):
         if commit:
             user.save()
         return user
-    
-    
+
+
 class MarkReadNotificationAsReadSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
@@ -184,8 +193,10 @@ class UserSerializer(serializers.ModelSerializer):
             password=validated_data["password"],
         )
 
+
 from rest_framework import serializers
 from .models import Book, Opinion
+
 
 class BookDetailSerializer(serializers.ModelSerializer):
     opinions = serializers.SerializerMethodField()
@@ -197,15 +208,15 @@ class BookDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Book
         fields = (
-            'id',
-            'title',
-            'author',
-            'description',
-            'opinions',
-            'copies_available',
-            'available_copies',
-            'can_add_opinion',
-            'notifications_enabled',
+            "id",
+            "title",
+            "author",
+            "description",
+            "opinions",
+            "copies_available",
+            "available_copies",
+            "can_add_opinion",
+            "notifications_enabled",
         )
 
     def get_opinions(self, obj):
@@ -215,12 +226,12 @@ class BookDetailSerializer(serializers.ModelSerializer):
 
     def get_can_add_opinion(self, obj):
         # Logic to determine if the user can add an opinion
-        user = self.context.get('request').user
+        user = self.context.get("request").user
         return user.has_borrowed_book(obj)
 
     def get_notifications_enabled(self, obj):
         # Logic to check if notifications are enabled for the user
-        user = self.context.get('request').user
+        user = self.context.get("request").user
         return user.notifications_enabled
 
 
