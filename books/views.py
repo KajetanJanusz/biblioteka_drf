@@ -49,7 +49,7 @@ class DashboardClientView(APIView):
     permission_classes = [IsAuthenticated, IsCustomerPermission]
 
     # @schemas.dashboard_client_schema
-    def get(self, request, pk=None):
+    def get(self, request):
         user = request.user
 
         if "ai_recommendations" in request.session:
@@ -136,7 +136,7 @@ class MarkNotificationAsReadView(APIView):
     permission_classes = [IsAuthenticated, IsCustomerPermission]
 
     # @schemas.mark_notification_as_read_customer_schema
-    def post(self, request, pk):
+    def post(self, request):
         serializer = serializers.MarkReadNotificationAsReadSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(

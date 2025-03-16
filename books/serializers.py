@@ -169,7 +169,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
 class MarkReadNotificationAsReadSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
-        fields = "id"
+        fields = ["id"]
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -220,17 +220,14 @@ class BookDetailSerializer(serializers.ModelSerializer):
         )
 
     def get_opinions(self, obj):
-        # Assuming you want to return a list of opinions related to this book
         opinions = Opinion.objects.filter(book=obj)
         return OpinionSerializer(opinions, many=True).data
 
     def get_can_add_opinion(self, obj):
-        # Logic to determine if the user can add an opinion
         user = self.context.get("request").user
         return user.has_borrowed_book(obj)
 
     def get_notifications_enabled(self, obj):
-        # Logic to check if notifications are enabled for the user
         user = self.context.get("request").user
         return user.notifications_enabled
 

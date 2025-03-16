@@ -26,7 +26,7 @@ def get_ai_book_recommendations(book_list):
             propozycja_2 = f"{match.group(4).strip("*")} - {match.group(5).strip().replace("*", "")}"
             propozycja_3 = f"{match.group(6).strip("*")} - {match.group(7).strip().replace("*", "")}"
 
-        return [propozycja_1, propozycja_2, propozycja_3]
+        return {{"id": 1, "prop": propozycja_1}, {"id": 2, "prop": propozycja_2}, {"id": 3, "prop": propozycja_3}}
     except Exception as e:
         return f"Wystąpił błąd podczas komunikacji z Gemini: {e}"
 
