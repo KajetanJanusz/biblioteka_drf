@@ -12,7 +12,6 @@ class ListBookSerializer(serializers.ModelSerializer):
     class Meta:
         model = Book
         fields = [
-            "id",
             "title",
             "author",
             "category",
@@ -28,7 +27,6 @@ class AddBookSerializer(serializers.ModelSerializer):
     class Meta:
         model = Book
         fields = [
-            "id",
             "title",
             "author",
             "category",
@@ -37,50 +35,19 @@ class AddBookSerializer(serializers.ModelSerializer):
             "total_copies",
         ]
 
-
-class BookCopySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = BookCopy
-        fields = ["id", "book", "is_available", "borrower"]
-
-
 class EditBookSerializer(serializers.ModelSerializer):
     class Meta:
         model = Book
         fields = [
-            "id",
             "title",
             "author",
             "category",
             "isbn",
             "total_copies",
             "description",
+            "published_date",
         ]
-
-
-class BorrowBookSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Book
-        fields = ["id"]
-
-    def validate_book_id(self, value):
-        try:
-            book = Book.objects.get(id=value)
-        except Book.DoesNotExist:
-            raise serializers.ValidationError("Książka o podanym ID nie istnieje.")
-
-
-class RentalIDSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = BookRental
-        fields = ["id"]
-
-    def validate_rental_id(self, value):
-        try:
-            rental = BookRental.objects.get(id=value)
-        except BookRental.DoesNotExist:
-            raise serializers.ValidationError("Wypożyczenie o podanym ID nie istnieje.")
-
+        
 
 class EditUserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -146,7 +113,6 @@ class AdminUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = [
-            "id",
             "username",
             "first_name",
             "last_name",
@@ -164,13 +130,6 @@ class AdminUserSerializer(serializers.ModelSerializer):
         if commit:
             user.save()
         return user
-
-
-class MarkReadNotificationAsReadSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Notification
-        fields = ["id"]
-
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
@@ -192,10 +151,6 @@ class UserSerializer(serializers.ModelSerializer):
             username=validated_data["username"],
             password=validated_data["password"],
         )
-
-
-from rest_framework import serializers
-from .models import Book, Opinion
 
 
 class BookDetailSerializer(serializers.ModelSerializer):

@@ -33,7 +33,7 @@ from core.helpers import get_five_book_articles
 from core.ai import get_ai_book_recommendations, get_ai_generated_description
 
 
-class DashboardClientView(APIView):
+class DashboardCustomerView(APIView):
     """
     Widok pulpitu klienta wyświetlający spersonalizowane informacje użytkownika.
 
@@ -48,7 +48,6 @@ class DashboardClientView(APIView):
 
     permission_classes = [IsAuthenticated, IsCustomerPermission]
 
-    # @schemas.dashboard_client_schema
     def get(self, request):
         user = request.user
 
@@ -117,7 +116,6 @@ class ArticlesView(APIView):
 
     permission_classes = [IsAuthenticated, IsCustomerPermission]
 
-    # @schemas.articles_view_customer_schema
     def get(self, request, *args, **kwargs):
         if "articles" in request.session:
             articles = request.session["articles"]
@@ -135,13 +133,7 @@ class MarkNotificationAsReadView(APIView):
 
     permission_classes = [IsAuthenticated, IsCustomerPermission]
 
-    # @schemas.mark_notification_as_read_customer_schema
     def post(self, request):
-        serializer = serializers.MarkReadNotificationAsReadSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(
-                {"error": serializer.error_messages}, status=status.HTTP_400_BAD_REQUEST
-            )
 
         try:
             notification = Notification.objects.get(id=request.data["id"])
@@ -179,17 +171,10 @@ class BorrowBookView(APIView):
 
     permission_classes = [IsAuthenticated, IsCustomerPermission]
 
-    # @schemas.borrow_book_customer_schema
-    def post(self, request, pk):
-        serializer = serializers.BorrowBookSerializer(data=request.data)
+    def post(self, request):
         user = request.user
 
-        if not serializer.is_valid():
-            return Response(
-                {"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        book = Book.objects.get(id=serializer.validated_data["id"])
+        book = Book.objects.get(id=request.data["id"])
 
         available_copy = (
             BookCopy.objects.select_related("book")
@@ -253,17 +238,8 @@ class ReturnBookView(APIView):
 
     permission_classes = [IsAuthenticated, IsCustomerPermission]
 
-    # @schemas.return_book_customer_schema
-    def post(self, request, pk):
-        """Obsługuje zwrot książki"""
-        serializer = serializers.RentalIDSerializer(data=request.data)
-
-        if not serializer.is_valid():
-            return Response(
-                {"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        rental = BookRental.objects.get(id=serializer.validated_data["id"])
+    def post(self, request):
+        rental = BookRental.objects.get(id=request.data["id"])
 
         rental.status = "pending"
         rental.save()
@@ -294,15 +270,8 @@ class ExtendRentalPeriodView(APIView):
 
     permission_classes = [IsAuthenticated, IsCustomerPermission]
 
-    # @schemas.extend_rental_customer_schema
     def post(self, request, *args, **kwargs):
-        serializer = serializers.RentalIDSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(
-                {"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        rental = BookRental.objects.get(id=serializer.validated_data["id"])
+        rental = BookRental.objects.get(id=request.data["id"])
 
         if not rental.is_extended:
             rental.due_date += timedelta(days=7)
@@ -333,7 +302,6 @@ class ListBooksView(ListAPIView):
     permission_classes = [IsAuthenticated, IsCustomerPermission]
     serializer_class = serializers.ListBookSerializer
 
-    # @schemas.list_books_customer_schema
     def get(self, request, *args, **kwargs):
         books = Book.objects.prefetch_related("copies").order_by("title")
         category_counts = Book.objects.values("category__name").annotate(
@@ -616,7 +584,7 @@ class ApproveReturnView(APIView):
 
     permission_classes = [IsAuthenticated, IsEmployeePermission]
 
-    def post(self, request, pk):
+    def post(self, request):
         try:
             rental = BookRental.objects.get(id=request.data["id"])
         except BookRental.DoesNotExist:

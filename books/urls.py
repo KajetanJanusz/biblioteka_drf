@@ -25,7 +25,7 @@ urlpatterns = [
     ),
     path(
         "dashboard/customer/",
-        views.DashboardClientView.as_view(),
+        views.DashboardCustomerView.as_view(),
         name="dashboard_customer",
     ),
     path(
