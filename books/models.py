@@ -24,6 +24,7 @@ class Book(models.Model):
     isbn = models.CharField(max_length=13, unique=True)
     description = models.TextField(blank=True, null=True)
     total_copies = models.PositiveIntegerField(blank=False, null=False)
+    is_deleted = models.BooleanField(default=False)
     ai_image = models.ImageField(upload_to="book_covers/", null=True, blank=True)
 
     def __str__(self):
@@ -43,6 +44,7 @@ class CustomUser(AbstractUser):
     phone = models.CharField(max_length=15, null=True, blank=True)
     is_employee = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
+    is_deleted = models.BooleanField(default=False)
     is_admin = models.BooleanField(default=False)
 
     def __str__(self):

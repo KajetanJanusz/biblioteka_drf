@@ -131,12 +131,11 @@ class AdminUserSerializer(serializers.ModelSerializer):
             user.save()
         return user
 
-class UserSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)
+class UserRegistrationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CustomUser
-        fields = ("id", "username", "password")
+        fields = ("username", "password")
 
     def validate(self, data):
         password = data.get("password")
@@ -190,4 +189,4 @@ class BookDetailSerializer(serializers.ModelSerializer):
 class CustomUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ["id", "username", "email", "first_name", "last_name"]
+        fields = ["id", "username", "email", "first_name", "last_name", "phone", "is_active"]

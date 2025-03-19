@@ -87,6 +87,7 @@ class DashboardCustomerView(APIView):
         )
 
         response_data = {
+            "user_id": user.id,
             "username": user.username,
             "rented_books": serializers.BookRentalSerializer(
                 rented_books, many=True
@@ -393,7 +394,7 @@ class DashboardEmployeeView(APIView):
     permission_classes = [IsAuthenticated, IsEmployeePermission]
 
     def get(self, request, *args, **kwargs):
-        user = request.user
+        user = self.request.user
 
         most_rented_books = (
             BookRental.objects.values("book_copy__book__title")
@@ -402,6 +403,7 @@ class DashboardEmployeeView(APIView):
         )
 
         data = {
+            "user_id": user.id,
             "users_rented_books": list(
                 BookRental.objects.filter(user=user, status="rented").values(
                     "id", "book_copy__book__title", "due_date"
@@ -564,7 +566,8 @@ class DeleteBookView(APIView):
                 {"error": "Książka z tym id nie istnieje"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        book.delete()
+        book.is_deleted = True
+        book.save()
         return Response(
             {"message": "Książka została usunięta"}, status=status.HTTP_204_NO_CONTENT
         )
@@ -742,7 +745,8 @@ class DeleteUserView(APIView):
 
     def post(self, request):
         user = CustomUser.objects.get(id=request.data["id"])
-        user.delete()
+        user.is_deleted = True
+        user.save()
 
         return Response({"message": "User deleted"}, status=status.HTTP_200_OK)
 
@@ -771,5 +775,5 @@ class UserRegistrationView(CreateAPIView):
     - Przekierowuje zalogowanych użytkowników
     """
 
-    serializer_class = serializers.UserSerializer
+    serializer_class = serializers.UserRegistrationSerializer
     permission_classes = [AllowAny]
