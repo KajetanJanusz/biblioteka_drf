@@ -137,7 +137,7 @@ class MarkNotificationAsReadView(APIView):
     def post(self, request):
 
         try:
-            notification = Notification.objects.get(id=request.data["id"])
+            notification = Notification.objects.get(id=request.query_params["id"])
         except Notification.DoesNotExist:
             return Response(
                 {
@@ -175,7 +175,7 @@ class BorrowBookView(APIView):
     def post(self, request):
         user = request.user
 
-        book = Book.objects.get(id=request.data["id"])
+        book = Book.objects.get(id=request.query_params["id"])
 
         available_copy = (
             BookCopy.objects.select_related("book")
@@ -240,7 +240,7 @@ class ReturnBookView(APIView):
     permission_classes = [IsAuthenticated, IsCustomerPermission]
 
     def post(self, request):
-        rental = BookRental.objects.get(id=request.data["id"])
+        rental = BookRental.objects.get(id=request.query_params["id"])
 
         rental.status = "pending"
         rental.save()
@@ -272,7 +272,7 @@ class ExtendRentalPeriodView(APIView):
     permission_classes = [IsAuthenticated, IsCustomerPermission]
 
     def post(self, request, *args, **kwargs):
-        rental = BookRental.objects.get(id=request.data["id"])
+        rental = BookRental.objects.get(id=request.query_params["id"])
 
         if not rental.is_extended:
             rental.due_date += timedelta(days=7)
@@ -316,7 +316,7 @@ class ListBooksView(ListAPIView):
         )
 
 
-class DetailBookView(RetrieveAPIView):
+class DetailBookView(APIView):
     """
     Widok szczegółów książki.
 
@@ -330,13 +330,31 @@ class DetailBookView(RetrieveAPIView):
     """
 
     permission_classes = [IsAuthenticated, IsCustomerPermission]
-    serializer_class = serializers.BookDetailSerializer
-    queryset = Book.objects.annotate(
-        copies_available=Exists(
-            BookCopy.objects.filter(book=OuterRef("pk"), is_available=True)
-        ),
-        available_copies=Count("copies", filter=Q(copies__is_available=True)),
-    )
+    
+    def get(self, request, *args, **kwargs):
+        user = self.request.user
+        book_id = self.request.query_params["id"]
+        book = Book.objects.get(id=book_id)
+        opinions = Opinion.objects.filter(book=book)
+        can_add_notifications = Notification.objects.filter(user=user,
+                                                         book=book,
+                                                         is_read=False,).exists()
+        available_copies = BookCopy.objects.filter(book=book, 
+                                                   is_available=True).count()
+        
+        response = {"book": serializers.BookDetailSerializer(
+                        book,
+                    ).data,
+                    "opinions": serializers.OpinionSerializer(
+                        opinions, many=True,
+                    ).data,
+                    "can_add_notifications": can_add_notifications,
+                    "available_copies": available_copies,
+                    }
+        
+        return Response(response, status=status.HTTP_200_OK)
+        
+        
 
 
 class SubscribeBookView(APIView):
@@ -355,7 +373,7 @@ class SubscribeBookView(APIView):
     def post(self, request, *args, **kwargs):
         user = request.user
         try:
-            book = Book.objects.get(id=request.data["id"])
+            book = Book.objects.get(id=request.query_params["id"])
         except Book.DoesNotExist:
             return Response(
                 {"error": "Książka z tym id nie istnieje"},
@@ -464,7 +482,7 @@ class AddBookView(CreateAPIView):
     permission_classes = [IsAuthenticated, IsEmployeePermission]
 
     def post(self, request, *args, **kwargs):
-        serializer = serializers.AddBookSerializer(data=request.data)
+        serializer = serializers.AddBookSerializer(data=request.query_params)
         if not serializer.is_valid():
             return Response(
                 {"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST
@@ -501,7 +519,7 @@ class EditBookView(APIView):
     permission_classes = [IsAuthenticated, IsEmployeePermission]
 
     def put(self, request, pk, *args, **kwargs):
-        serializer = serializers.EditBookSerializer(data=request.data)
+        serializer = serializers.EditBookSerializer(data=request.query_params)
 
         if not serializer.is_valid():
             return Response(
@@ -560,7 +578,7 @@ class DeleteBookView(APIView):
 
     def delete(self, request):
         try:
-            book = Book.objects.get(id=request.data["id"])
+            book = Book.objects.get(id=request.query_params["id"])
         except Book.DoesNotExist:
             return Response(
                 {"error": "Książka z tym id nie istnieje"},
@@ -589,7 +607,7 @@ class ApproveReturnView(APIView):
 
     def post(self, request):
         try:
-            rental = BookRental.objects.get(id=request.data["id"])
+            rental = BookRental.objects.get(id=request.query_params["id"])
         except BookRental.DoesNotExist:
             return Response(
                 {"error": "Zwrot z tym id nie istnieje"},
@@ -724,7 +742,7 @@ class ActiveUserView(APIView):
     permission_classes = [IsAuthenticated, IsEmployeePermission]
 
     def post(self, request):
-        user = CustomUser.objects.get(id=request.data["id"])
+        user = CustomUser.objects.get(id=request.query_params["id"])
         user.is_active = not user.is_active
         user.save()
         return Response({"message": "User status changed."}, status=status.HTTP_200_OK)
@@ -744,7 +762,7 @@ class DeleteUserView(APIView):
     permission_classes = [IsAuthenticated, IsEmployeePermission]
 
     def post(self, request):
-        user = CustomUser.objects.get(id=request.data["id"])
+        user = CustomUser.objects.get(id=request.query_params["id"])
         user.is_deleted = True
         user.save()
 

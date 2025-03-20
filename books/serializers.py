@@ -12,6 +12,7 @@ class ListBookSerializer(serializers.ModelSerializer):
     class Meta:
         model = Book
         fields = [
+            "id",
             "title",
             "author",
             "category",
@@ -153,38 +154,12 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
 
 class BookDetailSerializer(serializers.ModelSerializer):
-    opinions = serializers.SerializerMethodField()
-    copies_available = serializers.BooleanField()
-    available_copies = serializers.IntegerField()
-    can_add_opinion = serializers.SerializerMethodField()
-    notifications_enabled = serializers.SerializerMethodField()
-
+    category = serializers.CharField(source='category.name')
+    
     class Meta:
         model = Book
-        fields = (
-            "id",
-            "title",
-            "author",
-            "description",
-            "opinions",
-            "copies_available",
-            "available_copies",
-            "can_add_opinion",
-            "notifications_enabled",
-        )
-
-    def get_opinions(self, obj):
-        opinions = Opinion.objects.filter(book=obj)
-        return OpinionSerializer(opinions, many=True).data
-
-    def get_can_add_opinion(self, obj):
-        user = self.context.get("request").user
-        return user.has_borrowed_book(obj)
-
-    def get_notifications_enabled(self, obj):
-        user = self.context.get("request").user
-        return user.notifications_enabled
-
+        fields = ["title", "author", "category", "description", 
+                  "published_date", "isbn", "total_copies",]
 
 class CustomUserSerializer(serializers.ModelSerializer):
     class Meta:
