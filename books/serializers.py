@@ -12,7 +12,6 @@ class ListBookSerializer(serializers.ModelSerializer):
     class Meta:
         model = Book
         fields = [
-            "id",
             "title",
             "author",
             "category",
@@ -53,13 +52,13 @@ class EditBookSerializer(serializers.ModelSerializer):
 class EditUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ("id", "username", "email", "first_name", "last_name", "phone")
+        fields = ("email", "first_name", "last_name", "phone")
 
 
 class OpinionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Opinion
-        fields = ("id", "rate", "comment")
+        fields = ("rate", "comment")
 
 
 class BookRentalSerializer(serializers.ModelSerializer):
@@ -69,7 +68,6 @@ class BookRentalSerializer(serializers.ModelSerializer):
     class Meta:
         model = BookRental
         fields = [
-            "id",
             "book_title",
             "book_author",
             "rental_date",
@@ -86,7 +84,7 @@ class NotificationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Notification
-        fields = ["id", "message", "is_read", "book_title", "created_at"]
+        fields = ["message", "is_read", "book_title", "created_at"]
 
 
 class OpinionSerializer(serializers.ModelSerializer):
@@ -94,7 +92,7 @@ class OpinionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Opinion
-        fields = ["id", "book_title", "rate", "comment", "created_at"]
+        fields = ["book_title", "rate", "comment", "created_at"]
 
 
 class BadgeSerializer(serializers.ModelSerializer):
@@ -162,4 +160,4 @@ class BookDetailSerializer(serializers.ModelSerializer):
 class CustomUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ["id", "username", "email", "first_name", "last_name", "phone", "is_active"]
+        fields = ["username", "email", "first_name", "last_name", "phone", "is_active"]
