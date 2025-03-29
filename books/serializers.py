@@ -124,12 +124,10 @@ class AdminUserSerializer(serializers.ModelSerializer):
             "is_active",
         ]
 
-    def save(self, commit=True):
-        user = super().save(commit=False)
-        user.set_password(self.cleaned_data["password"])
-
-        if commit:
-            user.save()
+    def create(self, validated_data):
+        user = CustomUser(**validated_data)
+        user.set_password(validated_data["password"])
+        user.save()
         return user
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
