@@ -491,11 +491,12 @@ class AddBookView(CreateAPIView):
         author = serializer.validated_data["author"]
         total_copies = serializer.validated_data["total_copies"]
         category = serializer.validated_data["category"]
+        isbn = serializer.validated_data["isbn"]
 
         ai_description = get_ai_generated_description(title, author)
 
         book = Book.objects.create(
-            title=title, author=author, description=ai_description, category=category,
+            title=title, author=author, description=ai_description, category=category, isbn=isbn
         )
         book_copies = [BookCopy(book=book) for _ in range(total_copies)]
         BookCopy.objects.bulk_create(book_copies)
