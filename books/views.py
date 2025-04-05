@@ -300,7 +300,7 @@ class ListBooksView(ListAPIView):
         Wymaga logowania.
     """
 
-    permission_classes = [IsAuthenticated, IsCustomerPermission]
+    permission_classes = [AllowAny]
     serializer_class = serializers.ListBookSerializer
 
     def get(self, request, *args, **kwargs):
@@ -329,7 +329,7 @@ class DetailBookView(APIView):
         Wymaga logowania.
     """
 
-    permission_classes = [IsAuthenticated, IsCustomerPermission]
+    permission_classes = [IsAuthenticated]
     
     def get(self, request, pk, *args, **kwargs):
         user = self.request.user
@@ -490,11 +490,12 @@ class AddBookView(CreateAPIView):
         title = serializer.validated_data["title"]
         author = serializer.validated_data["author"]
         total_copies = serializer.validated_data["total_copies"]
+        category = serializer.validated_data["category"]
 
         ai_description = get_ai_generated_description(title, author)
 
         book = Book.objects.create(
-            title=title, author=author, description=ai_description
+            title=title, author=author, description=ai_description, category=category,
         )
         book_copies = [BookCopy(book=book) for _ in range(total_copies)]
         BookCopy.objects.bulk_create(book_copies)
@@ -518,13 +519,6 @@ class EditBookView(APIView):
     permission_classes = [IsAuthenticated, IsEmployeePermission]
 
     def put(self, request, pk, *args, **kwargs):
-        serializer = serializers.EditBookSerializer(data=request.data)
-
-        if not serializer.is_valid():
-            return Response(
-                {"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST
-            )
-
         try:
             book = Book.objects.get(id=pk)
         except Book.DoesNotExist:
@@ -532,6 +526,14 @@ class EditBookView(APIView):
                 {"error": "Książka z tym id nie istnieje"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        serializer = serializers.EditBookSerializer(book, data=request.data)
+
+        if not serializer.is_valid():
+            return Response(
+                {"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+
 
         new_total_copies = serializer.validated_data["total_copies"]
         old_total_copies = book.copies.count()
@@ -575,7 +577,7 @@ class DeleteBookView(APIView):
 
     permission_classes = [IsAuthenticated, IsEmployeePermission]
 
-    def delete(self, request, pk):
+    def post(self, request, pk):
         try:
             book = Book.objects.get(id=pk)
         except Book.DoesNotExist:
@@ -680,8 +682,8 @@ class ListUsersView(ListAPIView):
     """
 
     permission_classes = [IsAuthenticated, IsEmployeePermission]
-    serializer_class = serializers.CustomUserSerializer
-    queryset = CustomUser.objects.all()
+    serializer_class = serializers.ListUserSerializer
+    queryset = CustomUser.objects.filter(is_deleted=False)
 
 
 class DetailUserView(RetrieveAPIView):

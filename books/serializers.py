@@ -1,8 +1,12 @@
 import django.contrib.auth.password_validation as validators
 from django.core.exceptions import ValidationError
 from rest_framework import serializers
+from datetime import datetime
+from django.core.exceptions import ValidationError
+from rest_framework import serializers
+from .models import Book, Category
 
-from books.models import Badge, Book, BookCopy, BookRental, Notification, Opinion
+from books.models import Badge, Book, BookCopy, BookRental, Category, Notification, Opinion
 from books.models import CustomUser
 
 
@@ -24,7 +28,12 @@ class ListBookSerializer(serializers.ModelSerializer):
         return obj.copies.filter(is_available=True).count()
 
 
+
+
 class AddBookSerializer(serializers.ModelSerializer):
+    category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())
+    published_date = serializers.DateField(format="%Y-%m-%d", input_formats=["%Y-%m-%d"])
+
     class Meta:
         model = Book
         fields = [
@@ -35,6 +44,7 @@ class AddBookSerializer(serializers.ModelSerializer):
             "isbn",
             "total_copies",
         ]
+        
 
 class EditBookSerializer(serializers.ModelSerializer):
     class Meta:
@@ -63,12 +73,16 @@ class OpinionSerializer(serializers.ModelSerializer):
 
 
 class BookRentalSerializer(serializers.ModelSerializer):
+    rentalId = serializers.IntegerField(source="id", read_only=True)
+    notificationId = serializers.IntegerField(source="id", read_only=True)
     book_title = serializers.CharField(source="book_copy.book.title", read_only=True)
     book_author = serializers.CharField(source="book_copy.book.author", read_only=True)
 
     class Meta:
         model = BookRental
         fields = [
+            "rentalId",
+            "notificationId",
             "book_title",
             "book_author",
             "rental_date",
@@ -162,3 +176,8 @@ class CustomUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ["username", "email", "first_name", "last_name", "phone", "is_active"]
+
+class ListUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ["id", "username", "email", "first_name", "last_name", "phone", "is_active"]
