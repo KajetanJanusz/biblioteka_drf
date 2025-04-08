@@ -20,6 +20,7 @@ from books.models import (
     Book,
     BookRental,
     BookCopy,
+    Category,
     Notification,
     Opinion,
 )
@@ -534,14 +535,23 @@ class EditBookView(APIView):
                 {"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST
             )
 
-
-
         new_total_copies = serializer.validated_data["total_copies"]
         old_total_copies = book.copies.count()
         copies_difference = old_total_copies - new_total_copies
 
         book.title = serializer.validated_data["title"]
         book.author = serializer.validated_data["author"]
+        # Make sure to update category if it's in validated_data
+        if "category" in serializer.validated_data:
+            book.category = serializer.validated_data["category"]
+        # Update other fields if they exist in validated_data
+        if "description" in serializer.validated_data:
+            book.description = serializer.validated_data["description"]
+        if "published_date" in serializer.validated_data:
+            book.published_date = serializer.validated_data["published_date"]
+        if "isbn" in serializer.validated_data:
+            book.isbn = serializer.validated_data["isbn"]
+            
         book.save()
 
         if copies_difference > 0:
@@ -554,7 +564,11 @@ class EditBookView(APIView):
                     },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            available_copies[:copies_difference].delete()
+            
+            # Fix: Get the specific copies to delete instead of using slicing
+            copies_to_delete = list(available_copies.values_list('id', flat=True)[:copies_difference])
+            BookCopy.objects.filter(id__in=copies_to_delete).delete()
+            
         elif copies_difference < 0:
             BookCopy.objects.bulk_create(
                 [BookCopy(book=book) for _ in range(abs(copies_difference))]
@@ -670,6 +684,22 @@ class ListBorrowsView(ListAPIView):
         return BookRental.objects.annotate(status_priority=status_order).order_by(
             "status_priority", "-rental_date"
         )
+        
+
+class ListCategoriesView(ListAPIView):
+    """
+    Widok listy wypożyczeń.
+
+        Funkcje:
+        - Wyświetla wszystkie wypożyczenia
+        - Sortuje wypożyczenia według statusu
+
+        Wymaga logowania i dostępu pracownika.
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = serializers.CategorySerializer
+    queryset = Category.objects.all()
 
 
 class ListUsersView(ListAPIView):

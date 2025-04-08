@@ -41,6 +41,7 @@ urlpatterns = [
     path("users/active/<int:pk>", views.ActiveUserView.as_view(), name="active_user"),
     path("articles/", views.ArticlesView.as_view(), name="articles"),
     path("borrows/", views.ListBorrowsView.as_view(), name="list_borrows"),
+    path("categories/", views.ListCategoriesView.as_view(), name="list_categories"),
     path("books/", views.ListBooksView.as_view(), name="list_books"),
     path("books/details/<int:pk>", views.DetailBookView.as_view(), name="detail_book"),
     path("books/add/", views.AddBookView.as_view(), name="add_book"),
